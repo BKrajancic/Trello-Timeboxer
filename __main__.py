@@ -4,18 +4,23 @@ from datetime import timedelta, datetime
 from typing import Optional, Tuple, Any, Dict, List
 from trello import TrelloApi
 
-def _main():
+
+def _main() -> None:
     config: Dict[str, Any]
     trello: TrelloApi
-    config, trello = get_config()
+    config, trello = _get_config()
 
     for trello_list in trello.boards.get_list(config['board_id']):
-        set_due(trello, trello_list, config['delay'],)
+        print("Updating due dates")
+        set_due_based_on_title(trello, trello_list, config['delay'])
+        set_due_based_on_list(trello, trello_list, config['delay'])
+        print("Updating members")
         set_members(trello, trello_list, config['member_ids'])
+        print("Upading order")
         sort_by_due(trello, trello_list)
 
 
-def get_config() -> Tuple[Dict[str, Any], Any]:
+def _get_config() -> Tuple[Dict[str, Any], Any]:
     config_fp = 'config.json'
     with open(config_fp, "r") as fp:
         config = json.load(fp)
@@ -23,8 +28,8 @@ def get_config() -> Tuple[Dict[str, Any], Any]:
     trello = TrelloApi(config['app_key'])
     if 'token' not in config:
         url = trello.get_token_url(app_name='Timeboxer',
-                                    expires='30days',
-                                    write_access=True)
+                                   expires='30days',
+                                   write_access=True)
         print(url)
         print('Use the aforementioned url to get a token, then paste it here.')
         config['token'] = input("Paste token:")
@@ -34,9 +39,27 @@ def get_config() -> Tuple[Dict[str, Any], Any]:
     trello.set_token(config['token'])
     return config, trello
 
-def set_due(trello: TrelloApi,
-            trello_list: trello.Lists,
-            delays: Dict[str, int]):
+
+def set_due_based_on_title(trello: TrelloApi,
+                           trello_list: trello.Lists,
+                           delays: Dict[str, int]) -> None:
+    """
+    Update all cards in a trello list to have a due date if it doesn't exist.
+
+    The due date is 'extra days' from today.
+    """
+    for card in trello.lists.get_card(trello_list['id']):
+        if card['due'] is None:
+            for key, value in delays.items():
+                if key in card['name']:
+                    due = datetime.now() + timedelta(days=value)
+                    trello.cards.update(card['id'], due=due)
+                    break
+
+
+def set_due_based_on_list(trello: TrelloApi,
+                          trello_list: trello.Lists,
+                          delays: Dict[str, int]) -> None:
     """
     Update all cards in a trello list to have a due date if it doesn't exist.
 
@@ -59,17 +82,21 @@ def _update_due(trello: TrelloApi,
             trello.cards.update(card['id'], due=due)
 
 
-def sort_by_due(trello: TrelloApi, trello_list: trello.Lists):
+def sort_by_due(trello: TrelloApi, trello_list: trello.Lists) -> None:
     """Sort cards in a list by due date."""
     cards = trello.lists.get_card(trello_list['id'])
-    get_due = lambda x: datetime.strptime(x['due'], "%Y-%m-%dT%H:%M:%S.%fZ")
-    for i, card in enumerate(sorted(cards,key=get_due)):
-        trello.cards.update(card['id'], pos=i)
+
+    def get_due(x: trello.cards) -> datetime:
+        return datetime.strptime(x['due'], "%Y-%m-%dT%H:%M:%S.%fZ")
+
+    for i, card in enumerate(sorted(cards, key=get_due)):
+        if i != card['pos']:
+            trello.cards.update(card['id'], pos=i)
 
 
 def set_members(trello: TrelloApi,
                 trello_list: trello.Lists,
-                members: List[str]):
+                members: List[str]) -> None:
     """Set the members for each card in a trello list."""
     card = trello.cards
     for card in trello.lists.get_card(trello_list['id']):
