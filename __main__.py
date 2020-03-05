@@ -51,7 +51,7 @@ def set_due_based_on_title(trello: TrelloApi,
     for card in trello.lists.get_card(trello_list['id']):
         if card['due'] is None:
             for key, value in delays.items():
-                if key in card['name']:
+                if key.lower() in card['name'].lower():
                     due = datetime.now() + timedelta(days=value)
                     trello.cards.update(card['id'], due=due)
                     break
@@ -66,7 +66,7 @@ def set_due_based_on_list(trello: TrelloApi,
     The due date is 'extra days' from today.
     """
     for key, value in delays.items():
-        if key in trello_list['name']:
+        if key.lower() in trello_list['name'].lower():
             _update_due(trello, trello_list, value)
             break
     else:
