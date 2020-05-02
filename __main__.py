@@ -28,7 +28,7 @@ def _get_config() -> Tuple[Dict[str, Any], Any]:
     trello = TrelloApi(config['app_key'])
     if 'token' not in config:
         url = trello.get_token_url(app_name='Timeboxer',
-                                   expires='30days',
+                                   expires='never',
                                    write_access=True)
         print(url)
         print('Use the aforementioned url to get a token, then paste it here.')
